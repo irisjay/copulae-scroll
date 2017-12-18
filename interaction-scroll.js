@@ -1,29 +1,29 @@
-var drags = R .memoize (function (dom) {
-    dom .style .touchAction = 'none';
-    return from (function (drag) {
-        var _;
-        interact (dom) .draggable({
-            inertia: true,
-            onstart: function (e) {
-                window .dragging = true;
-
-                _ = stream (e);
-                drag (_);
-            },
-            onmove: function (e) {
-                _ (e)
-            },
-            onend: function (e) {
-                _ (e)
-                _ .end (true)
-                
-                setTimeout (function () {
-                    window .dragging = false;
-                }, 0)
-            }
-        })// .dropzone (true);
-    })
-})
+var drags = function (dom) {
+    if (! dom .__drags) {
+        dom .style .touchAction = 'none';
+        dom .__drags = [stream ()]
+			.map (R .tap (function (drag) {
+	            var _;
+	            
+	            dom .addEventListener ('touchstart', function (e) {
+	                _ = stream (e);
+	                drag (_);
+	            });
+	            dom .addEventListener ('touchmove', function (e) {
+	                window .dragging = true;
+	
+	                _ (e)
+	            });
+	            dom .addEventListener ('touchend', function (e) {
+	                _ (e)
+	                _ .end (true);
+	                window .dragging = false;
+	            });
+	        }))
+		[0];
+    }
+    return dom .__drags;
+}
 
 
 		
@@ -87,32 +87,6 @@ var scroll_interaction = function (direction) {
                     }
                 }
                 
-                /*var threshold = 2000;
-                if (scroll_ - scroll > threshold || scroll - scroll_ > threshold) {
-                    var positivity = scroll_ - scroll > 0 ? +1 : -1;
-                    var adjusted_scroll = scroll + positivity * threshold;
-                    var residue = scroll_ - adjusted_scroll;
-                    scroll_ = adjusted_scroll;
-                    requestAnimationFrame (function () {
-                        _ .intent (['drag', R .assoc (direction, residue) ({}), _ .state ()]);
-                    });
-                }*/
-                
-                /*if (scroll_ !== scroll && ! scrolled) {
-                    scrolled = true;
-                    setTimeout (function () {
-                        var scroll_ = _ .state ()
-                        //console .log (scroll_ - scroll, scroll_);
-                        if (direction === 'x') {
-                            dom .setAttribute ('transform', 'translate(-' + (scroll_ - max [direction]) + ' 0)');
-                        }
-                        else if (direction === 'y') {
-                            dom .setAttribute ('transform', 'translate(0 -' + (scroll_ - max [direction]) + ')');
-                        }
-                        scrolled = false;
-                    }, 0)
-                }*/
-                
                 return only_ (scroll_);
             }
             else {
@@ -122,31 +96,47 @@ var scroll_interaction = function (direction) {
         
         _ .state (max [direction]);
 
+        var last_x, last_y;
 		[drags (svg)]
 			.map (filter (function (drag) {
 			    var drag_start = svg .createSVGPoint ();
-			    drag_start .x = drag () .x0;
-			    drag_start .y = drag () .y0;
+			    drag_start .x = drag () .touches [0] .pageX;
+			    drag_start .y = drag () .touches [0] .pageY;
 			    drag_start = drag_start .matrixTransform (dom .getScreenCTM () .inverse ())
 			    
 			    var _max = ugly_max ();
 			    return min .x <= drag_start .x && drag_start .x <= _max .x &&
 	                min .y <= drag_start .y && drag_start .y <= _max .y
-		    }))
-		    .map (switchLatest) 
-		    .map (map (function (e) {
-			    return {
-			        x: e .dx,
-			        y: e .dy
+		    })) 
+			.map (switchLatest)
+			.map (tap (function (e) {
+			    if (e .type === 'touchstart') {
+			        last_x = e .touches [0] .pageX
+			        last_y = e .touches [0] .pageY
 			    }
+			})) 
+			.map (filter (function (e) {
+			    return e .type === 'touchmove'
 			}))
+			.map (map (function (e) {
+			    var d = {
+			        x: e .touches [0] .pageX - last_x,
+			        y: e .touches [0] .pageY - last_y
+			    }
+		        last_x = e .touches [0] .pageX
+		        last_y = e .touches [0] .pageY
+			    return d;
+			})) 
 			.forEach (tap (function (x) {
 			    _ .intent (['drag', x, _ .state ()]);
 			}))
         
         return {
             _: _,
-            dom: dom 
+            dom: {
+                intent: stream (),
+                state: stream (dom)
+            }
         };
 	}
 }
