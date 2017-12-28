@@ -90,7 +90,7 @@ var scroll_interaction = function (direction) {
                 return only_ (scroll_);
             }
             else {
-                //fuked
+                //TODO: handle error
             }
         }));
         
